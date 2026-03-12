@@ -1,3 +1,10 @@
+"""
+Arbitrage Tool Setup Instructions:
+1. Install requirements: `pip install -r requirements.txt`
+   (Or manually: `pip install requests pandas openai playwright`)
+2. Install Playwright browsers: `playwright install`
+3. Ensure OPENAI_API_KEY environment variable is set.
+"""
 import os
 import time
 import json
