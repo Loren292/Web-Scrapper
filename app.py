@@ -14,6 +14,11 @@ if "df_final" not in st.session_state:
 # Sidebar Configuration
 st.sidebar.title("Configuración del Motor")
 limit_input = st.sidebar.slider("Límite de Tendencias a analizar", min_value=5, max_value=50, value=10)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Credenciales (Opcional)")
+meli_token = st.sidebar.text_input("MELI Access Token (Bearer)", type="password", help="Necesario para no recibir error 401/403 en las APIs de Mercado Libre.")
+
 run_pipeline = st.sidebar.button("Ejecutar Escaneo de Arbitraje", type="primary", use_container_width=True)
 
 # Main Panel Layout
@@ -23,7 +28,8 @@ if run_pipeline:
     with st.status("Iniciando pipeline...", expanded=True) as status:
         try:
             st.write("Consultando API de Tendencias de ML...")
-            meli_data = Meli_Demand_Engine().get_top_opportunities(limit=limit_input)
+            # Pasa el token ingresado o None
+            meli_data = Meli_Demand_Engine(access_token=meli_token if meli_token else None).get_top_opportunities(limit=limit_input)
 
             if not meli_data:
                 st.warning("No se encontraron oportunidades en Mercado Libre.")
@@ -56,7 +62,7 @@ if st.session_state.df_final is not None:
     # Configure DataFrame visualization
     st.dataframe(
         st.session_state.df_final,
-        use_container_width=True,
+        width='stretch',
         column_config={
             "MELI_URL": st.column_config.LinkColumn(
                 "MELI_URL",

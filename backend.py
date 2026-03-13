@@ -18,15 +18,17 @@ import random
 # MODULE 1: Meli_Demand_Engine
 # ==========================================
 class Meli_Demand_Engine:
-    def __init__(self):
+    def __init__(self, access_token=None):
         self.trends_url = "https://api.mercadolibre.com/trends/MLA"
         self.search_url = "https://api.mercadolibre.com/sites/MLA/search"
+        self.access_token = access_token or os.getenv("MELI_ACCESS_TOKEN")
+        self.headers = {"Authorization": f"Bearer {self.access_token}"} if self.access_token else {}
 
     def get_top_trends(self, limit=50):
         """Fetches top trends from MELI MLA up to the given limit."""
         print("Fetching top trends from Mercado Libre...")
         try:
-            response = requests.get(self.trends_url)
+            response = requests.get(self.trends_url, headers=self.headers)
             response.raise_for_status()
             trends_data = response.json()
             # trends_data is typically a list of dicts with 'keyword' or just a list of objects
@@ -61,7 +63,7 @@ class Meli_Demand_Engine:
             try:
                 # Query MELI Search API
                 params = {"q": term}
-                response = requests.get(self.search_url, params=params)
+                response = requests.get(self.search_url, headers=self.headers, params=params)
                 response.raise_for_status()
                 search_data = response.json()
 
@@ -169,7 +171,8 @@ class Alibaba_Sourcing_Scraper:
         async with async_playwright() as p:
             # We add stealth arguments to chromium launch to bypass basic detections
             browser = await p.chromium.launch(
-                headless=True,
+                headless=False,
+                slow_mo=500,
                 args=["--disable-blink-features=AutomationControlled"]
             )
             context = await browser.new_context(
@@ -208,31 +211,24 @@ class Alibaba_Sourcing_Scraper:
                     await page.mouse.wheel(0, 1000)
                     await asyncio.sleep(random.uniform(0.5, 1.5))
 
-                # Try to wait for products grid. Alibaba structure is highly volatile.
-                # Common classes for product cards: `.traffic-product-card`, `.search-card-e-slider`, `.card-info`
-                # We'll wait for `.traffic-product-card` or fallback
+                # A robust approach to finding product containers:
+                # We search for any div or a-tag containing structural evidence of a product
+                # such as `data-content="productItem"` or `[data-spm="normal_offer"]` or `.search-card-item`
 
                 try:
-                    await page.wait_for_selector('.traffic-product-card', timeout=15000)
-                    product_cards = await page.locator('.traffic-product-card').all()
+                    await page.wait_for_selector('div[data-spm="normal_offer"], div[data-content="productItem"], .card-info, .search-card-item, .traffic-product-card', timeout=15000)
+                    product_cards = await page.locator('div[data-spm="normal_offer"], div[data-content="productItem"], .card-info, .search-card-item, .traffic-product-card').all()
                 except Exception:
-                    print("Primary selector failed, trying fallback selector...")
+                    print(f"Failed to find product cards for {b2b_term}. Alibaba layout may have drastically changed.")
+
+                    # Take a screenshot for debugging if it fails
                     try:
-                        await page.wait_for_selector('.search-card-e-slider', timeout=10000)
-                        product_cards = await page.locator('.search-card-e-slider').all()
+                        await page.screenshot(path=f"alibaba_error_{b2b_term.replace(' ', '_')}.png")
+                        print(f"Saved error screenshot to alibaba_error_{b2b_term.replace(' ', '_')}.png")
                     except Exception:
-                        print("Fallback selector 1 failed, trying fallback selector 2...")
-                        try:
-                            await page.wait_for_selector('div[data-spm="normal_offer"]', timeout=10000)
-                            product_cards = await page.locator('div[data-spm="normal_offer"]').all()
-                        except Exception:
-                            print("Fallback selector 2 failed, trying fallback selector 3...")
-                            try:
-                                await page.wait_for_selector('.app-organic-search__list .list-no-v4', timeout=10000)
-                                product_cards = await page.locator('.app-organic-search__list .list-no-v4').all()
-                            except Exception:
-                                print(f"Failed to find product cards for {b2b_term}.")
-                                product_cards = []
+                        pass
+
+                    product_cards = []
 
                 print(f"Found {len(product_cards)} product cards for {b2b_term}")
 
@@ -242,61 +238,79 @@ class Alibaba_Sourcing_Scraper:
                     if count >= 3:
                         break
 
+                    # Ensure the card is actually a product by checking for an image or link
+                    link_locator = card.locator('a[href*="/product/"], a[href*="/p-detail/"], a').first
+                    try:
+                        if await link_locator.count() == 0:
+                            continue # Skip non-product wrapper elements
+                    except Exception:
+                        continue
+
                     # --- Product Title ---
                     title = "N/A"
-                    for selector in ['.search-card-e-title', '.title', 'h2']:
+                    for selector in ['h2', '.search-card-e-title', '.title', '[data-e2e="productTitle"]']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
                                 title = await el.inner_text()
-                                break
+                                if title and len(title) > 3:
+                                    break
                         except:
                             pass
 
                     # --- FOB Price Range ---
                     price = "N/A - Manual Check Required"
-                    for selector in ['.search-card-e-price-main', '.price', '.elements-title-normal']:
+                    for selector in ['.search-card-e-price-main', '.price', '.elements-title-normal', '[data-e2e="productPrice"]']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
                                 price = await el.inner_text()
-                                break
+                                if price:
+                                    break
+                        except:
+                            pass
+
+                    # Sometimes price is just the strongest text containing '$'
+                    if price == "N/A - Manual Check Required":
+                        try:
+                            price_el = card.locator("text=/\\$/i").first
+                            if await price_el.count() > 0:
+                                price = await price_el.inner_text()
                         except:
                             pass
 
                     # --- MOQ ---
                     moq = "N/A - Manual Check Required"
-                    for selector in ['.search-card-m-sale-features__item', '.moq', '.min-order']:
+                    for selector in ['.search-card-m-sale-features__item', '.moq', '.min-order', '[data-e2e="productMinOrder"]']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
                                 moq = await el.inner_text()
-                                break
+                                if "piece" in moq.lower() or "set" in moq.lower() or "box" in moq.lower() or "unit" in moq.lower():
+                                    break
                         except:
                             pass
 
                     # --- Supplier Name ---
                     supplier = "N/A"
-                    for selector in ['.search-card-e-company', '.company-name', '.seller-name']:
+                    for selector in ['.search-card-e-company', '.company-name', '.seller-name', '[data-e2e="companyName"]']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
                                 supplier = await el.inner_text()
-                                break
+                                if supplier:
+                                    break
                         except:
                             pass
 
                     # --- Supplier Location (often mixed with supplier info or requires clicking, we try our best) ---
                     location = "N/A"
-                    # In some Alibaba layouts, province/country isn't directly on the search card.
-                    # We look for common flags or text.
 
                     # --- URL ---
                     url = "N/A"
                     try:
-                        el = card.locator('a').first
-                        if await el.count() > 0:
-                            href = await el.get_attribute('href')
+                        if await link_locator.count() > 0:
+                            href = await link_locator.get_attribute('href')
                             if href:
                                 url = "https:" + href if href.startswith("//") else href
                     except:
@@ -305,8 +319,8 @@ class Alibaba_Sourcing_Scraper:
                     results.append({
                         "Supplier_Name": supplier.strip(),
                         "Product_Title": title.strip(),
-                        "FOB_Price": price.strip(),
-                        "MOQ": moq.strip(),
+                        "FOB_Price": price.strip().replace('\n', ' '),
+                        "MOQ": moq.strip().replace('\n', ' '),
                         "Location": location.strip(),
                         "URL": url.strip()
                     })
