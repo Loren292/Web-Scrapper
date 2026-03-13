@@ -1,9 +1,8 @@
 """
 Arbitrage Tool Setup Instructions:
 1. Install requirements: `pip install -r requirements.txt`
-   (Or manually: `pip install requests pandas openai playwright`)
+   (Or manually: `pip install requests pandas playwright`)
 2. Install Playwright browsers: `playwright install`
-3. Ensure OPENAI_API_KEY environment variable is set.
 """
 import os
 import time
@@ -11,7 +10,6 @@ import json
 import asyncio
 import requests
 import pandas as pd
-from openai import AsyncOpenAI
 from playwright.async_api import async_playwright
 import random
 
@@ -83,61 +81,45 @@ class Meli_Demand_Engine:
         return top_5
 
 # ==========================================
-# MODULE 2: LLM_Semantic_Bridge
+# MODULE 2: Static_Semantic_Bridge
 # ==========================================
-class LLM_Semantic_Bridge:
+class Static_Semantic_Bridge:
     def __init__(self):
-        # We use AsyncOpenAI for async processing
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            print("Warning: OPENAI_API_KEY environment variable not set. LLM translation will fall back to dummy data.")
-            self.client = None
-        else:
-            self.client = AsyncOpenAI(api_key=api_key)
+        # A hardcoded dictionary of common Argentine e-commerce search terms
+        # translated to highly technical B2B English keywords suitable for Alibaba.
+        self.translation_map = {
+            "funda asiento auto perro": "600D Waterproof Pet Car Seat Cover",
+            "auriculares inalambricos": "TWS Bluetooth 5.3 Earbuds",
+            "termo stanley": "Double Wall Stainless Steel Vacuum Flask",
+            "zapatillas hombre": "Men's Breathable Running Sneakers",
+            "reloj inteligente": "Smartwatch with Heart Rate Monitor and GPS",
+            "mate": "Double Wall Stainless Steel Yerba Mate Gourd",
+            "bombilla": "Stainless Steel Yerba Mate Straw Filter",
+            "silla gamer": "Ergonomic Racing Gaming Chair",
+            "aro de luz": "10 inch LED Ring Light with Tripod Stand",
+            "mochila": "Waterproof Anti-Theft Laptop Backpack",
+            "botella termica": "Stainless Steel Insulated Water Bottle",
+            "luces led": "5050 RGB LED Strip Lights",
+            "funda iphone": "Shockproof Clear Silicone Phone Case",
+            "auriculares gamer": "Gaming Headset with Noise Cancelling Microphone"
+        }
 
     async def translate_to_b2b(self, term):
-        """Translates an Argentine search term into a technical B2B English keyword using GPT-4o-mini."""
+        """Translates an Argentine search term into a technical B2B English keyword using a static dictionary."""
         print(f"Translating '{term}' to B2B English...")
-        prompt = f"""
-        You are an expert in international B2B manufacturing and e-commerce sourcing.
-        Translate the following Argentine Spanish search term into highly technical, international B2B manufacturing English, suitable for an Alibaba search.
-        Extract the core defining keywords.
-        For example: "Funda asiento auto perro" -> "600D Waterproof Pet Car Seat Cover".
 
-        Term to translate: "{term}"
+        # Lowercase the term for matching
+        normalized_term = term.lower().strip()
 
-        Return ONLY a JSON object with the key "b2b_search_term" and the string value.
-        """
-
-        if not self.client:
-            print("Using fallback LLM translation...")
-            fallback_map = {
-                "funda asiento auto perro": "600D Waterproof Pet Car Seat Cover",
-                "auriculares inalambricos": "TWS Bluetooth 5.3 Earbuds",
-                "termo stanley": "Double Wall Stainless Steel Vacuum Flask",
-                "zapatillas hombre": "Men's Breathable Running Sneakers",
-                "reloj inteligente": "Smartwatch with Heart Rate Monitor and GPS"
-            }
-            return fallback_map.get(term.lower(), f"Technical B2B {term}")
-
-        try:
-            response = await self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that outputs strict JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"}
-            )
-
-            content = response.choices[0].message.content
-            data = json.loads(content)
-            b2b_term = data.get("b2b_search_term", "")
-            print(f"Translation result for '{term}': {b2b_term}")
+        # Check if the exact term exists in our dictionary
+        if normalized_term in self.translation_map:
+            b2b_term = self.translation_map[normalized_term]
+            print(f"Static translation result for '{term}': {b2b_term}")
             return b2b_term
-        except Exception as e:
-            print(f"Error during LLM translation for '{term}': {e}")
-            return f"Error translating {term}"
+
+        # Fallback if the term is not mapped (a simple translation logic could be added here if needed)
+        print(f"Warning: No static translation found for '{term}'. Using default fallback format.")
+        return f"Wholesale {term.capitalize()}"
 
     async def process_opportunities(self, opportunities):
         """Processes a list of opportunities to get their B2B terms."""
@@ -408,7 +390,7 @@ async def main_pipeline():
         return
 
     # Module 2
-    bridge = LLM_Semantic_Bridge()
+    bridge = Static_Semantic_Bridge()
     processed_opps = await bridge.process_opportunities(opportunities)
 
     # Module 3
