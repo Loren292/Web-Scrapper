@@ -68,16 +68,50 @@ def fetch_competitors(query, token):
         "limit": 50
     }
 
-    # We do not use authorization header here to prevent IP blocking
-    headers = {
-        "User-Agent": "ProjectDeltaStockManager/1.0"
-    }
-
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=get_headers(token), params=params)
 
     if response.status_code == 200:
         return response.json()
     else:
+        # Check if we are running in a restricted cloud environment getting 403s
+        # and provide mock data so the app doesn't crash visually for development purposes.
+        if response.status_code in [401, 403]:
+            st.warning("⚠️ ML Load Balancer bloqueó la IP de este servidor (403). Usando datos de prueba para demostración.")
+            return {
+                "paging": {"total": 120},
+                "results": [
+                    {
+                        "id": "MLA123",
+                        "title": f"{query} - Modelo Mock",
+                        "price": 25000,
+                        "sold_quantity": 45,
+                        "condition": "new",
+                        "permalink": "https://mercadolibre.com.ar",
+                        "seller": {"id": 111, "nickname": "VENDEDOR_TEST"},
+                        "shipping": {"free_shipping": True}
+                    },
+                    {
+                        "id": "MLA124",
+                        "title": f"{query} - Modelo Premium",
+                        "price": 55000,
+                        "sold_quantity": 120,
+                        "condition": "new",
+                        "permalink": "https://mercadolibre.com.ar",
+                        "seller": {"id": 111, "nickname": "VENDEDOR_TEST"},
+                        "shipping": {"free_shipping": True}
+                    },
+                     {
+                        "id": "MLA125",
+                        "title": f"{query} - Usado Oferta",
+                        "price": 15000,
+                        "sold_quantity": 2,
+                        "condition": "used",
+                        "permalink": "https://mercadolibre.com.ar",
+                        "seller": {"id": 222, "nickname": "COMPETIDOR_A"},
+                        "shipping": {"free_shipping": False}
+                    }
+                ]
+            }
         st.error(f"Error al buscar competidores: {response.status_code} - {response.text}")
         return None
 
