@@ -40,11 +40,11 @@ class Meli_Demand_Engine:
             # Fallback for testing when public API endpoint is unauthorized or down.
             print("Using fallback dummy trends for demonstration...")
             return [
-                "funda asiento auto perro",
-                "auriculares inalambricos",
-                "termo stanley",
-                "zapatillas hombre",
-                "reloj inteligente"
+                "funda para asiento de auto perro",  # should match "funda asiento auto"
+                "zapatillas deportivas nike",        # should be skipped
+                "dispenser agua electrico",          # should match "dispenser agua"
+                "espejo led para baño",              # should match "espejo led"
+                "auriculares inalambricos"           # should be skipped
             ]
 
     def get_opportunity_ratio(self, trends):
@@ -85,53 +85,91 @@ class Meli_Demand_Engine:
 # ==========================================
 class Static_Semantic_Bridge:
     def __init__(self):
-        # A hardcoded dictionary of common Argentine e-commerce search terms
-        # translated to highly technical B2B English keywords suitable for Alibaba.
-        self.translation_map = {
-            "funda asiento auto perro": "600D Waterproof Pet Car Seat Cover",
-            "auriculares inalambricos": "TWS Bluetooth 5.3 Earbuds",
-            "termo stanley": "Double Wall Stainless Steel Vacuum Flask",
-            "zapatillas hombre": "Men's Breathable Running Sneakers",
-            "reloj inteligente": "Smartwatch with Heart Rate Monitor and GPS",
-            "mate": "Double Wall Stainless Steel Yerba Mate Gourd",
-            "bombilla": "Stainless Steel Yerba Mate Straw Filter",
-            "silla gamer": "Ergonomic Racing Gaming Chair",
-            "aro de luz": "10 inch LED Ring Light with Tripod Stand",
-            "mochila": "Waterproof Anti-Theft Laptop Backpack",
-            "botella termica": "Stainless Steel Insulated Water Bottle",
-            "luces led": "5050 RGB LED Strip Lights",
-            "funda iphone": "Shockproof Clear Silicone Phone Case",
-            "auriculares gamer": "Gaming Headset with Noise Cancelling Microphone"
+        # El Diccionario Maestro con nichos de alta traccion
+        self.mapping = {
+            # Electrodomésticos y Cocina
+            "campana inteligente": "Smart touch sensor range hood T-shape 900mm",
+            "campana extractora": "Wall-mounted kitchen range hood copper motor",
+            "bacha negra": "Nano black stainless steel 304 waterfall kitchen sink",
+            "bacha acero": "Stainless steel 304 kitchen sink handmade",
+
+            # Tratamiento de Agua y Climatización
+            "dispenser agua": "Freestanding water dispenser compressor cooling bottom load",
+            "calefon instantaneo": "Tankless electric hot water heater digital display 220V",
+            "calefon motorhome": "Portable LPG gas water heater RV tankless",
+            "filtro bajo mesada": "Under sink water filter system 3 stage RO",
+            "ducha electrica": "Electric shower head instant heater 220V",
+
+            # Seguridad y Smart Home
+            "camara solar": "4G PTZ solar panel security camera PIR outdoor",
+            "camara wifi": "Tuya smart home WiFi security camera 1080p",
+            "cerradura digital": "Tuya smart WiFi biometric fingerprint door lock",
+            "espejo led": "Smart LED bathroom mirror anti-fog touch sensor",
+
+            # Mascotas y Vehículos
+            "funda asiento auto": "600D Oxford waterproof pet car seat cover hammock",
+            "cucha perro": "Outdoor plastic dog house waterproof large",
+            "rueda gatos": "Cat exercise wheel treadmill silent",
+            "luces parrilla": "LED grille lights Raptor style amber waterproof"
         }
 
-    async def translate_to_b2b(self, term):
-        """Translates an Argentine search term into a technical B2B English keyword using a static dictionary."""
-        print(f"Translating '{term}' to B2B English...")
+    def translate_terms(self, meli_trends):
+        """
+        Recibe una lista de strings (tendencias de ML) y devuelve
+        las traducciones exactas para Alibaba si encuentra coincidencias.
+        """
+        b2b_search_terms = []
 
-        # Lowercase the term for matching
-        normalized_term = term.lower().strip()
+        for trend in meli_trends:
+            trend_lower = trend.lower()
+            match_found = False
 
-        # Check if the exact term exists in our dictionary
-        if normalized_term in self.translation_map:
-            b2b_term = self.translation_map[normalized_term]
-            print(f"Static translation result for '{term}': {b2b_term}")
-            return b2b_term
+            # Buscamos si alguna de nuestras claves maestras está en la tendencia de ML
+            for ml_key, alibaba_query in self.mapping.items():
+                # Checking substring: is the dictionary key inside the ML trend?
+                # e.g., "funda asiento auto" in "funda para asiento de auto" -> False directly
+                # We need to split the ml_key into words and check if all words exist in the trend
+                ml_words = ml_key.split()
+                if all(word in trend_lower for word in ml_words):
+                    b2b_search_terms.append({
+                        "meli_term": trend,
+                        "b2b_query": alibaba_query
+                    })
+                    match_found = True
+                    break # Si encuentra coincidencia, pasa a la siguiente tendencia
 
-        # Fallback if the term is not mapped (a simple translation logic could be added here if needed)
-        print(f"Warning: No static translation found for '{term}'. Using default fallback format.")
-        return f"Wholesale {term.capitalize()}"
+            # Sinceridad técnica: Si la tendencia es algo que no está en el diccionario
+            # (ej. "zapatillas nike"), la ignoramos para no gastar recursos en Alibaba.
+            if not match_found:
+                print(f"Ignorando tendencia fuera de nicho: {trend}")
+
+        return b2b_search_terms
 
     async def process_opportunities(self, opportunities):
-        """Processes a list of opportunities to get their B2B terms."""
+        """Processes a list of opportunities using substring matching logic."""
         results = []
-        for opp in opportunities:
-            term = opp["term"]
-            b2b_term = await self.translate_to_b2b(term)
-            results.append({
-                "term": term,
-                "total_results": opp["total_results"],
-                "b2b_search_term": b2b_term
-            })
+
+        # Extract just the trend terms for the translate function
+        meli_trends = [opp["term"] for opp in opportunities]
+
+        # Get matching b2b queries
+        translated_terms = self.translate_terms(meli_trends)
+
+        # Re-map the total_results back into the matched terms
+        for translation in translated_terms:
+            meli_term = translation["meli_term"]
+            b2b_query = translation["b2b_query"]
+
+            # Find the original opportunity data to retrieve the total_results
+            for opp in opportunities:
+                if opp["term"] == meli_term:
+                    results.append({
+                        "term": meli_term,
+                        "total_results": opp["total_results"],
+                        "b2b_search_term": b2b_query
+                    })
+                    break
+
         return results
 
 # ==========================================
