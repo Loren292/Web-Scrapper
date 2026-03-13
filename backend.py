@@ -155,24 +155,23 @@ class Static_Semantic_Bridge:
         return results
 
 # ==========================================
-# MODULE 3: Alibaba_Sourcing_Scraper
+# MODULE 3: MadeInChina_Sourcing_Scraper
 # ==========================================
-class Alibaba_Sourcing_Scraper:
+class MadeInChina_Sourcing_Scraper:
     def __init__(self):
-        self.base_url = "https://www.alibaba.com/trade/search?fsb=y&IndexArea=product_en&CatId=&SearchText="
+        self.base_url = "https://www.made-in-china.com/productdirectory.do?word="
 
-    async def scrape_alibaba(self, b2b_term):
-        """Scrapes Alibaba.com for the given B2B keyword and extracts top 3 suppliers."""
+    async def scrape_mic(self, b2b_term):
+        """Scrapes Made-in-China for the given B2B keyword and extracts top 3 suppliers."""
         search_url = self.base_url + b2b_term.replace(" ", "+")
-        print(f"Scraping Alibaba for: {b2b_term} ({search_url})")
+        print(f"Scraping Made-in-China for: {b2b_term} ({search_url})")
 
         results = []
 
         async with async_playwright() as p:
             # We add stealth arguments to chromium launch to bypass basic detections
             browser = await p.chromium.launch(
-                headless=False,
-                slow_mo=500,
+                headless=True,
                 args=["--disable-blink-features=AutomationControlled"]
             )
             context = await browser.new_context(
@@ -192,39 +191,22 @@ class Alibaba_Sourcing_Scraper:
                 await page.set_extra_http_headers({"Referer": "https://www.google.com/"})
                 await page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
 
-                # Check for basic Captcha or block (e.g. title contains "Security" or specific element)
-                page_title = await page.title()
-                if "security" in page_title.lower() or "captcha" in page_title.lower() or "interception" in page_title.lower():
-                    print(f"CAPTCHA triggered for {b2b_term}. Skipping...")
-                    await browser.close()
-                    return results
-
-                # Check for common interception elements
-                captcha_elements = await page.locator('.nc-container, .captcha-tips, .sm-pop-inner').count()
-                if captcha_elements > 0:
-                    print(f"CAPTCHA elements detected for {b2b_term}. Skipping...")
-                    await browser.close()
-                    return results
-
                 # Scroll to handle lazy-loading
                 for _ in range(5):
                     await page.mouse.wheel(0, 1000)
                     await asyncio.sleep(random.uniform(0.5, 1.5))
 
-                # A robust approach to finding product containers:
-                # We search for any div or a-tag containing structural evidence of a product
-                # such as `data-content="productItem"` or `[data-spm="normal_offer"]` or `.search-card-item`
-
+                # A robust approach to finding product containers on Made-in-China:
                 try:
-                    await page.wait_for_selector('div[data-spm="normal_offer"], div[data-content="productItem"], .card-info, .search-card-item, .traffic-product-card', timeout=15000)
-                    product_cards = await page.locator('div[data-spm="normal_offer"], div[data-content="productItem"], .card-info, .search-card-item, .traffic-product-card').all()
+                    await page.wait_for_selector('.product-list .product-item, .list-node', timeout=15000)
+                    product_cards = await page.locator('.product-list .product-item, .list-node').all()
                 except Exception:
-                    print(f"Failed to find product cards for {b2b_term}. Alibaba layout may have drastically changed.")
+                    print(f"Failed to find product cards for {b2b_term}. Made-in-China layout may have drastically changed.")
 
                     # Take a screenshot for debugging if it fails
                     try:
-                        await page.screenshot(path=f"alibaba_error_{b2b_term.replace(' ', '_')}.png")
-                        print(f"Saved error screenshot to alibaba_error_{b2b_term.replace(' ', '_')}.png")
+                        await page.screenshot(path=f"mic_error_{b2b_term.replace(' ', '_')}.png")
+                        print(f"Saved error screenshot to mic_error_{b2b_term.replace(' ', '_')}.png")
                     except Exception:
                         pass
 
@@ -239,16 +221,18 @@ class Alibaba_Sourcing_Scraper:
                         break
 
                     # Ensure the card is actually a product by checking for an image or link
-                    link_locator = card.locator('a[href*="/product/"], a[href*="/p-detail/"], a').first
+                    link_locator = card.locator('a.product-name, a.title, h2 a').first
                     try:
                         if await link_locator.count() == 0:
-                            continue # Skip non-product wrapper elements
+                            link_locator = card.locator('a').first
+                            if await link_locator.count() == 0:
+                                continue # Skip non-product wrapper elements
                     except Exception:
                         continue
 
                     # --- Product Title ---
                     title = "N/A"
-                    for selector in ['h2', '.search-card-e-title', '.title', '[data-e2e="productTitle"]']:
+                    for selector in ['h2.product-name', '.product-name', 'a.title']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
@@ -260,7 +244,7 @@ class Alibaba_Sourcing_Scraper:
 
                     # --- FOB Price Range ---
                     price = "N/A - Manual Check Required"
-                    for selector in ['.search-card-e-price-main', '.price', '.elements-title-normal', '[data-e2e="productPrice"]']:
+                    for selector in ['.price', '.product-price', '.fob-price']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
@@ -270,30 +254,21 @@ class Alibaba_Sourcing_Scraper:
                         except:
                             pass
 
-                    # Sometimes price is just the strongest text containing '$'
-                    if price == "N/A - Manual Check Required":
-                        try:
-                            price_el = card.locator("text=/\\$/i").first
-                            if await price_el.count() > 0:
-                                price = await price_el.inner_text()
-                        except:
-                            pass
-
                     # --- MOQ ---
                     moq = "N/A - Manual Check Required"
-                    for selector in ['.search-card-m-sale-features__item', '.moq', '.min-order', '[data-e2e="productMinOrder"]']:
+                    for selector in ['.min-order', '.moq', '.order-quantity']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
                                 moq = await el.inner_text()
-                                if "piece" in moq.lower() or "set" in moq.lower() or "box" in moq.lower() or "unit" in moq.lower():
+                                if moq:
                                     break
                         except:
                             pass
 
                     # --- Supplier Name ---
                     supplier = "N/A"
-                    for selector in ['.search-card-e-company', '.company-name', '.seller-name', '[data-e2e="companyName"]']:
+                    for selector in ['.company-name', '.supplier-name', '.company-info a']:
                         try:
                             el = card.locator(selector).first
                             if await el.count() > 0:
@@ -305,6 +280,15 @@ class Alibaba_Sourcing_Scraper:
 
                     # --- Supplier Location (often mixed with supplier info or requires clicking, we try our best) ---
                     location = "N/A"
+                    for selector in ['.location', '.supplier-location']:
+                        try:
+                            el = card.locator(selector).first
+                            if await el.count() > 0:
+                                location = await el.inner_text()
+                                if location:
+                                    break
+                        except:
+                            pass
 
                     # --- URL ---
                     url = "N/A"
@@ -312,7 +296,8 @@ class Alibaba_Sourcing_Scraper:
                         if await link_locator.count() > 0:
                             href = await link_locator.get_attribute('href')
                             if href:
-                                url = "https:" + href if href.startswith("//") else href
+                                url = "https://www.made-in-china.com" + href if href.startswith("/") else href
+                                url = "https:" + url if url.startswith("//") else url
                     except:
                         pass
 
@@ -327,7 +312,7 @@ class Alibaba_Sourcing_Scraper:
                     count += 1
 
             except Exception as e:
-                print(f"Error scraping Alibaba for '{b2b_term}': {e}")
+                print(f"Error scraping Made-in-China for '{b2b_term}': {e}")
             finally:
                 await browser.close()
 
@@ -343,7 +328,7 @@ class Alibaba_Sourcing_Scraper:
         final_data = []
         for opp in processed_opportunities:
             b2b_term = opp["b2b_search_term"]
-            suppliers = await self.scrape_alibaba(b2b_term)
+            suppliers = await self.scrape_mic(b2b_term)
 
             # If no suppliers found due to CAPTCHA or layout changes, log it
             if not suppliers:
@@ -389,18 +374,18 @@ class Arbitrage_Compiler:
             "FOB_Price",
             "MOQ",
             "Location",
-            "Alibaba_URL"
+            "MIC_URL"
         ]
 
-    def generate_dataframe(self, meli_data, alibaba_data):
+    def generate_dataframe(self, meli_data, mic_data):
         """Compiles the final data into a pandas DataFrame, resolving URLs and exporting it."""
-        print(f"Compiling arbitrage report with {len(alibaba_data)} rows...")
-        data = alibaba_data
+        print(f"Compiling arbitrage report with {len(mic_data)} rows...")
+        data = mic_data
 
-        # Add MELI_URL and Alibaba_URL
+        # Add MELI_URL and MIC_URL
         for row in data:
             row["MELI_URL"] = f"https://listado.mercadolibre.com.ar/{row['MELI_Term'].replace(' ', '-')}"
-            row["Alibaba_URL"] = row.pop("URL", "N/A")
+            row["MIC_URL"] = row.pop("URL", "N/A")
         if not data:
             print("No data to compile.")
             return
@@ -426,6 +411,6 @@ if __name__ == "__main__":
     limit_input = 5
     meli_data = Meli_Demand_Engine().get_top_opportunities(limit=limit_input)
     b2b_terms = Static_Semantic_Bridge().translate_terms(meli_data)
-    alibaba_data = Alibaba_Sourcing_Scraper().scrape_suppliers(b2b_terms)
-    df_final = Arbitrage_Compiler().generate_dataframe(meli_data, alibaba_data)
+    mic_data = MadeInChina_Sourcing_Scraper().scrape_suppliers(b2b_terms)
+    df_final = Arbitrage_Compiler().generate_dataframe(meli_data, mic_data)
     print(df_final)

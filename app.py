@@ -1,5 +1,5 @@
 import streamlit as st
-from backend import Meli_Demand_Engine, Static_Semantic_Bridge, Alibaba_Sourcing_Scraper, Arbitrage_Compiler
+from backend import Meli_Demand_Engine, Static_Semantic_Bridge, MadeInChina_Sourcing_Scraper, Arbitrage_Compiler
 
 # Configure Streamlit page
 st.set_page_config(
@@ -42,11 +42,11 @@ if run_pipeline:
                     st.warning("Ninguna de las tendencias coincidió con el diccionario B2B local.")
                     status.update(label="Proceso detenido.", state="error")
                 else:
-                    st.write("Scrapeando Alibaba de forma asíncrona (Playwright)...")
-                    alibaba_data = Alibaba_Sourcing_Scraper().scrape_suppliers(b2b_terms)
+                    st.write("Scrapeando Made-in-China de forma asíncrona (Playwright)...")
+                    mic_data = MadeInChina_Sourcing_Scraper().scrape_suppliers(b2b_terms)
 
                     st.write("Compilando reporte de arbitraje...")
-                    df_final = Arbitrage_Compiler().generate_dataframe(meli_data, alibaba_data)
+                    df_final = Arbitrage_Compiler().generate_dataframe(meli_data, mic_data)
 
                     # Save to session state so it persists on UI interactions
                     st.session_state.df_final = df_final
@@ -69,9 +69,9 @@ if st.session_state.df_final is not None:
                 help="Enlace a los listados de Mercado Libre",
                 display_text="Ver en MELI"
             ),
-            "Alibaba_URL": st.column_config.LinkColumn(
-                "Alibaba_URL",
-                help="Enlace al proveedor en Alibaba",
+            "MIC_URL": st.column_config.LinkColumn(
+                "MIC_URL",
+                help="Enlace al proveedor en Made-in-China",
                 display_text="Ver Proveedor"
             )
         }
