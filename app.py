@@ -2,9 +2,8 @@ import os
 import pandas as pd
 import streamlit as st
 
-# We assume that the modules 1 to 4 are provided via 'backend' package/module
-# as per the user's explicit instructions.
-from backend import (
+# Import modules from main.py since the backend logic is there
+from main import (
     Meli_Demand_Engine,
     LLM_Semantic_Bridge,
     Alibaba_Sourcing_Scraper,
