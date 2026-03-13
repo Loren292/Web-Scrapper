@@ -1,87 +1,146 @@
 import streamlit as st
-from backend import Meli_Demand_Engine, Static_Semantic_Bridge, MadeInChina_Sourcing_Scraper, Arbitrage_Compiler
+import requests
+import pandas as pd
+import json
+import os
+import time
 
-# Configure Streamlit page
+# 1. Credentials config
+TOKENS_FILE = "tokens.json"
+
 st.set_page_config(
-    page_title="Project Delta: Arbitrage Scanner",
+    page_title="Gestor de Stock - Mercado Libre",
     layout="wide"
 )
 
-# Manage state
-if "df_final" not in st.session_state:
-    st.session_state.df_final = None
-
-# Sidebar Configuration
-st.sidebar.title("Configuración del Motor")
-limit_input = st.sidebar.slider("Límite de Tendencias a analizar", min_value=5, max_value=50, value=10)
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("Credenciales (Opcional)")
-meli_token = st.sidebar.text_input("MELI Access Token (Bearer)", type="password", help="Necesario para no recibir error 401/403 en las APIs de Mercado Libre.")
-
-run_pipeline = st.sidebar.button("Ejecutar Escaneo de Arbitraje", type="primary", use_container_width=True)
-
-# Main Panel Layout
-st.title("Project Delta: Arbitrage Scanner (Static Mapping)")
-
-if run_pipeline:
-    with st.status("Iniciando pipeline...", expanded=True) as status:
+def load_access_token():
+    if os.path.exists(TOKENS_FILE):
         try:
-            st.write("Consultando API de Tendencias de ML...")
-            # Pasa el token ingresado o None
-            meli_data = Meli_Demand_Engine(access_token=meli_token if meli_token else None).get_top_opportunities(limit=limit_input)
-
-            if not meli_data:
-                st.warning("No se encontraron oportunidades en Mercado Libre.")
-                status.update(label="Proceso detenido.", state="error")
-            else:
-                st.write("Cruzando datos con el Diccionario B2B local...")
-                b2b_terms = Static_Semantic_Bridge().translate_terms(meli_data)
-
-                if not b2b_terms:
-                    st.warning("Ninguna de las tendencias coincidió con el diccionario B2B local.")
-                    status.update(label="Proceso detenido.", state="error")
-                else:
-                    st.write("Scrapeando Made-in-China de forma asíncrona (Playwright)...")
-                    mic_data = MadeInChina_Sourcing_Scraper().scrape_suppliers(b2b_terms)
-
-                    st.write("Compilando reporte de arbitraje...")
-                    df_final = Arbitrage_Compiler().generate_dataframe(meli_data, mic_data)
-
-                    # Save to session state so it persists on UI interactions
-                    st.session_state.df_final = df_final
-                    status.update(label="Escaneo completado con éxito.", state="complete")
+            with open(TOKENS_FILE, "r") as f:
+                tokens = json.load(f)
+                return tokens.get("access_token")
         except Exception as e:
-            st.error(f"Se produjo un error durante la ejecución del pipeline: {e}")
-            status.update(label="Error en el escaneo.", state="error")
+            st.error(f"Error leyendo tokens.json: {e}")
+    return None
 
-# Display Results & Export functionality
-if st.session_state.df_final is not None:
-    st.subheader("Resultados del Arbitraje")
+def get_headers(token):
+    return {
+        "Authorization": f"Bearer {token}",
+        "User-Agent": "ProjectDeltaStockManager/1.0"
+    }
 
-    # Configure DataFrame visualization
-    st.dataframe(
-        st.session_state.df_final,
-        width='stretch',
-        column_config={
-            "MELI_URL": st.column_config.LinkColumn(
-                "MELI_URL",
-                help="Enlace a los listados de Mercado Libre",
-                display_text="Ver en MELI"
-            ),
-            "MIC_URL": st.column_config.LinkColumn(
-                "MIC_URL",
-                help="Enlace al proveedor en Made-in-China",
-                display_text="Ver Proveedor"
-            )
-        }
-    )
+def fetch_user_id(token):
+    url = "https://api.mercadolibre.com/users/me"
+    response = requests.get(url, headers=get_headers(token))
 
-    # Export CSV Button
-    csv_data = st.session_state.df_final.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="Descargar CSV",
-        data=csv_data,
-        file_name='project_delta_report.csv',
-        mime='text/csv',
-    )
+    if response.status_code == 200:
+        return response.json().get("id")
+    else:
+        st.error(f"Error al obtener User ID: {response.status_code} - {response.text}")
+        return None
+
+def fetch_seller_items(user_id, token):
+    url = f"https://api.mercadolibre.com/users/{user_id}/items/search"
+    all_items = []
+    scroll_id = None
+
+    # We use search endpoint with scroll to get all items if there are many
+    # For simplicity, we just fetch the first page here. A robust implementation would loop.
+    params = {
+        "status": "active",
+        "limit": 50 # Max 50 per request
+    }
+
+    response = requests.get(url, headers=get_headers(token), params=params)
+
+    if response.status_code == 200:
+        data = response.json()
+        all_items.extend(data.get("results", []))
+        return all_items
+    else:
+        st.error(f"Error al buscar publicaciones: {response.status_code} - {response.text}")
+        return []
+
+def fetch_item_details(item_ids, token):
+    """Fetches details for a list of item IDs. Max 20 ids per request."""
+    if not item_ids:
+        return []
+
+    details = []
+
+    # Chunk the item_ids into groups of 20
+    chunk_size = 20
+    for i in range(0, len(item_ids), chunk_size):
+        chunk = item_ids[i:i + chunk_size]
+        ids_str = ",".join(chunk)
+        url = f"https://api.mercadolibre.com/items?ids={ids_str}"
+
+        response = requests.get(url, headers=get_headers(token))
+
+        if response.status_code == 200:
+            data = response.json()
+            # The multi-get API returns a list of objects with "code" and "body"
+            for item in data:
+                if item.get("code") == 200:
+                    body = item.get("body", {})
+                    details.append({
+                        "ID": body.get("id"),
+                        "Título": body.get("title"),
+                        "Precio": body.get("price"),
+                        "Stock Disponible": body.get("available_quantity"),
+                        "Condición": body.get("condition"),
+                        "Enlace": body.get("permalink")
+                    })
+        else:
+             st.error(f"Error fetching item details: {response.status_code} - {response.text}")
+
+        time.sleep(0.5) # Sleep to avoid rate limiting
+
+    return details
+
+
+st.title("📦 Gestor de Stock - Mercado Libre")
+
+token = load_access_token()
+
+if not token:
+    st.warning("No se encontró un token de acceso válido. Por favor, ejecuta `python get_token.py` para generar uno.")
+    st.stop()
+
+if st.button("Consultar Stock", type="primary"):
+    with st.spinner("Consultando datos del vendedor..."):
+        user_id = fetch_user_id(token)
+
+    if user_id:
+        with st.spinner(f"Buscando publicaciones para el usuario {user_id}..."):
+            item_ids = fetch_seller_items(user_id, token)
+
+        if not item_ids:
+            st.info("No tienes publicaciones activas en Mercado Libre.")
+        else:
+            with st.spinner(f"Obteniendo detalles de {len(item_ids)} publicaciones..."):
+                item_details = fetch_item_details(item_ids, token)
+
+            if item_details:
+                df = pd.DataFrame(item_details)
+                st.success("¡Datos obtenidos con éxito!")
+
+                # Format dataframe for better UI
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    column_config={
+                        "Enlace": st.column_config.LinkColumn("Enlace ML", display_text="Ver Producto")
+                    }
+                )
+
+                # Allow download
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Descargar Reporte de Stock (CSV)",
+                    data=csv,
+                    file_name='reporte_stock_ml.csv',
+                    mime='text/csv',
+                )
+            else:
+                 st.error("No se pudieron obtener los detalles de las publicaciones.")
