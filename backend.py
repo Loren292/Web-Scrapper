@@ -7,6 +7,7 @@ Arbitrage Tool Setup Instructions:
 import os
 import time
 import json
+import sys
 import asyncio
 import requests
 import pandas as pd
@@ -320,6 +321,8 @@ class Alibaba_Sourcing_Scraper:
 
     def scrape_suppliers(self, processed_opportunities):
         """Synchronous wrapper to scrape suppliers for given opportunities."""
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
         return asyncio.run(self._run_pipeline(processed_opportunities))
 
     async def _run_pipeline(self, processed_opportunities):
