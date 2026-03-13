@@ -61,60 +61,6 @@ def fetch_seller_items(user_id, token):
         st.error(f"Error al buscar publicaciones: {response.status_code} - {response.text}")
         return []
 
-def fetch_competitors(query, token):
-    url = "https://api.mercadolibre.com/sites/MLA/search"
-    params = {
-        "q": query,
-        "limit": 50
-    }
-
-    response = requests.get(url, headers=get_headers(token), params=params)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        # Check if we are running in a restricted cloud environment getting 403s
-        # and provide mock data so the app doesn't crash visually for development purposes.
-        if response.status_code in [401, 403]:
-            st.warning("⚠️ ML Load Balancer bloqueó la IP de este servidor (403). Usando datos de prueba para demostración.")
-            return {
-                "paging": {"total": 120},
-                "results": [
-                    {
-                        "id": "MLA123",
-                        "title": f"{query} - Modelo Mock",
-                        "price": 25000,
-                        "sold_quantity": 45,
-                        "condition": "new",
-                        "permalink": "https://mercadolibre.com.ar",
-                        "seller": {"id": 111, "nickname": "VENDEDOR_TEST"},
-                        "shipping": {"free_shipping": True}
-                    },
-                    {
-                        "id": "MLA124",
-                        "title": f"{query} - Modelo Premium",
-                        "price": 55000,
-                        "sold_quantity": 120,
-                        "condition": "new",
-                        "permalink": "https://mercadolibre.com.ar",
-                        "seller": {"id": 111, "nickname": "VENDEDOR_TEST"},
-                        "shipping": {"free_shipping": True}
-                    },
-                     {
-                        "id": "MLA125",
-                        "title": f"{query} - Usado Oferta",
-                        "price": 15000,
-                        "sold_quantity": 2,
-                        "condition": "used",
-                        "permalink": "https://mercadolibre.com.ar",
-                        "seller": {"id": 222, "nickname": "COMPETIDOR_A"},
-                        "shipping": {"free_shipping": False}
-                    }
-                ]
-            }
-        st.error(f"Error al buscar competidores: {response.status_code} - {response.text}")
-        return None
-
 def fetch_item_details(item_ids, token):
     """Fetches details for a list of item IDs. Max 20 ids per request."""
     if not item_ids:
@@ -153,7 +99,7 @@ def fetch_item_details(item_ids, token):
     return details
 
 
-st.title("📦 Gestor de E-Commerce - Mercado Libre")
+st.title("📦 Gestor de Stock - Mercado Libre")
 
 token = load_access_token()
 
@@ -161,105 +107,40 @@ if not token:
     st.warning("No se encontró un token de acceso válido. Por favor, ejecuta `python get_token.py` para generar uno.")
     st.stop()
 
-tab_stock, tab_research = st.tabs(["Mi Stock", "Investigación de Mercado"])
+if st.button("Consultar Mi Stock", type="primary"):
+    with st.spinner("Consultando datos del vendedor..."):
+        user_id = fetch_user_id(token)
 
-with tab_stock:
-    st.header("Gestor de Stock")
-    if st.button("Consultar Mi Stock", type="primary"):
-        with st.spinner("Consultando datos del vendedor..."):
-            user_id = fetch_user_id(token)
+    if user_id:
+        with st.spinner(f"Buscando publicaciones para el usuario {user_id}..."):
+            item_ids = fetch_seller_items(user_id, token)
 
-        if user_id:
-            with st.spinner(f"Buscando publicaciones para el usuario {user_id}..."):
-                item_ids = fetch_seller_items(user_id, token)
+        if not item_ids:
+            st.info("No tienes publicaciones activas en Mercado Libre.")
+        else:
+            with st.spinner(f"Obteniendo detalles de {len(item_ids)} publicaciones..."):
+                item_details = fetch_item_details(item_ids, token)
 
-            if not item_ids:
-                st.info("No tienes publicaciones activas en Mercado Libre.")
-            else:
-                with st.spinner(f"Obteniendo detalles de {len(item_ids)} publicaciones..."):
-                    item_details = fetch_item_details(item_ids, token)
+            if item_details:
+                df = pd.DataFrame(item_details)
+                st.success("¡Datos obtenidos con éxito!")
 
-                if item_details:
-                    df = pd.DataFrame(item_details)
-                    st.success("¡Datos obtenidos con éxito!")
-
-                    # Format dataframe for better UI
-                    st.dataframe(
-                        df,
-                        use_container_width=True,
-                        column_config={
-                            "Enlace": st.column_config.LinkColumn("Enlace ML", display_text="Ver Producto")
-                        }
-                    )
-
-                    # Allow download
-                    csv = df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="Descargar Reporte de Stock (CSV)",
-                        data=csv,
-                        file_name='reporte_stock_ml.csv',
-                        mime='text/csv',
-                    )
-                else:
-                     st.error("No se pudieron obtener los detalles de las publicaciones.")
-
-with tab_research:
-    st.header("Investigación de Competencia")
-
-    query = st.text_input("Ingresa el producto a investigar:", value="campanas extractoras para cocina")
-
-    if st.button("Buscar Competencia", type="primary"):
-        with st.spinner(f"Buscando '{query}' en Mercado Libre..."):
-            search_data = fetch_competitors(query, token)
-
-        if search_data:
-            total_sellers = search_data.get("paging", {}).get("total", 0)
-            results = search_data.get("results", [])
-
-            st.metric("Total de publicaciones encontradas", total_sellers)
-
-            if results:
-                competitor_details = []
-                for item in results:
-                    seller = item.get("seller", {})
-                    seller_id = seller.get("id", "N/A")
-                    seller_nickname = seller.get("nickname", "N/A")
-
-                    shipping = item.get("shipping", {})
-                    free_shipping = "Sí" if shipping.get("free_shipping") else "No"
-
-                    competitor_details.append({
-                        "ID": item.get("id"),
-                        "Título": item.get("title"),
-                        "Precio": item.get("price"),
-                        "Vendedor (ID - Nombre)": f"{seller_id} - {seller_nickname}",
-                        "Condición": item.get("condition"),
-                        "Envío Gratis": free_shipping,
-                        "Enlace": item.get("permalink")
-                    })
-
-                df_comp = pd.DataFrame(competitor_details)
-
-                # Sort by Price ascending
-                df_comp = df_comp.sort_values(by="Precio", ascending=True).reset_index(drop=True)
-
-                st.subheader(f"Top 50 Resultados (Ordenados por Precio)")
+                # Format dataframe for better UI
                 st.dataframe(
-                    df_comp,
+                    df,
                     use_container_width=True,
                     column_config={
-                        "Precio": st.column_config.NumberColumn("Precio", format="$ %d"),
                         "Enlace": st.column_config.LinkColumn("Enlace ML", display_text="Ver Producto")
                     }
                 )
 
                 # Allow download
-                csv_comp = df_comp.to_csv(index=False).encode('utf-8')
+                csv = df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="Descargar Reporte de Competencia (CSV)",
-                    data=csv_comp,
-                    file_name='reporte_competencia_ml.csv',
+                    label="Descargar Reporte de Stock (CSV)",
+                    data=csv,
+                    file_name='reporte_stock_ml.csv',
                     mime='text/csv',
                 )
             else:
-                st.warning("No se encontraron resultados para esta búsqueda.")
+                 st.error("No se pudieron obtener los detalles de las publicaciones.")
