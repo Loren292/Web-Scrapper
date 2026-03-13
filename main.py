@@ -167,22 +167,39 @@ class Alibaba_Sourcing_Scraper:
         results = []
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-                viewport={'width': 1920, 'height': 1080}
+            # We add stealth arguments to chromium launch to bypass basic detections
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"]
             )
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+                viewport={'width': random.choice([1920, 1366, 1536]), 'height': random.choice([1080, 768, 864])}
+            )
+
+            # Stealth script injection
+            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
             page = await context.new_page()
 
             try:
                 # Add random delay to prevent IP bans
                 await asyncio.sleep(random.uniform(2, 5))
+                # Set a generic HTTP header for referer
+                await page.set_extra_http_headers({"Referer": "https://www.google.com/"})
                 await page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
 
                 # Check for basic Captcha or block (e.g. title contains "Security" or specific element)
                 page_title = await page.title()
-                if "security" in page_title.lower() or "captcha" in page_title.lower():
+                if "security" in page_title.lower() or "captcha" in page_title.lower() or "interception" in page_title.lower():
                     print(f"CAPTCHA triggered for {b2b_term}. Skipping...")
+                    await browser.close()
+                    return results
+
+                # Check for common interception elements
+                captcha_elements = await page.locator('.nc-container, .captcha-tips, .sm-pop-inner').count()
+                if captcha_elements > 0:
+                    print(f"CAPTCHA elements detected for {b2b_term}. Skipping...")
                     await browser.close()
                     return results
 
