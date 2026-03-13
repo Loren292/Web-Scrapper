@@ -19,10 +19,20 @@ def main() -> None:
     # ---------------------------------------------------------
     st.sidebar.title("Configuración del Motor")
 
+    # AI Provider Selection
+    ai_provider = st.sidebar.radio(
+        "Proveedor de IA",
+        ["OpenAI", "Gemini"],
+        help="Seleccione el modelo de lenguaje a utilizar para la traducción semántica."
+    )
+
+    api_key_label = "OpenAI API Key" if ai_provider == "OpenAI" else "Gemini API Key"
+    api_key_help = "Ingrese su clave de API de OpenAI (gpt-4o-mini)." if ai_provider == "OpenAI" else "Ingrese su clave de API de Gemini (1.5 Flash)."
+
     api_key_input = st.sidebar.text_input(
-        "Gemini API Key",
+        api_key_label,
         type="password",
-        help="Ingrese su clave de API de Gemini (1.5 Flash) para el puente semántico."
+        help=api_key_help
     )
 
     limit_input = st.sidebar.slider(
@@ -47,10 +57,18 @@ def main() -> None:
     if ejecutar_boton:
         # Manejo de Errores: Habilitar el pipeline solo si hay API Key
         if not api_key_input:
-            st.error("Error: Debes ingresar una Gemini API Key válida antes de ejecutar el escaneo.")
+            st.error(f"Error: Debes ingresar una {api_key_label} válida antes de ejecutar el escaneo.")
         else:
-            # Inyectamos la clave en el entorno operativo para que el Módulo 2 la tome automáticamente
-            os.environ["GEMINI_API_KEY"] = api_key_input
+            # Clear previous keys to avoid conflicts, then set the active one
+            if "OPENAI_API_KEY" in os.environ:
+                del os.environ["OPENAI_API_KEY"]
+            if "GEMINI_API_KEY" in os.environ:
+                del os.environ["GEMINI_API_KEY"]
+
+            if ai_provider == "OpenAI":
+                os.environ["OPENAI_API_KEY"] = api_key_input
+            else:
+                os.environ["GEMINI_API_KEY"] = api_key_input
 
             # Feedback en Tiempo Real
             with st.status("Iniciando pipeline...", expanded=True) as status:
@@ -61,7 +79,8 @@ def main() -> None:
                     meli_data = meli_engine.get_top_opportunities(limit_input)
 
                     # Módulo 2: Puente Semántico LLM
-                    status.update(label="Ejecutando Módulo 2: Traduciendo términos con Gemini...", state="running")
+                    ai_name = "GPT-4o-mini" if ai_provider == "OpenAI" else "Gemini"
+                    status.update(label=f"Ejecutando Módulo 2: Traduciendo términos con {ai_name}...", state="running")
                     llm_bridge = LLM_Semantic_Bridge()
                     b2b_terms = llm_bridge.translate_terms(meli_data)
 

@@ -5,6 +5,7 @@ import asyncio
 import requests
 import pandas as pd
 import google.generativeai as genai
+from openai import AsyncOpenAI
 from playwright.async_api import async_playwright
 import random
 
@@ -80,19 +81,26 @@ class Meli_Demand_Engine:
 # ==========================================
 class LLM_Semantic_Bridge:
     def __init__(self):
-        # We use Gemini for async processing
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            print("Warning: GEMINI_API_KEY environment variable not set. LLM translation will fall back to dummy data.")
-            self.client = None
-        else:
-            genai.configure(api_key=api_key)
-            # gemini-1.5-flash is fast and supports JSON response formats
+        self.provider = None
+        self.client = None
+
+        # Check which API key is provided and initialize the corresponding client
+        openai_key = os.getenv("OPENAI_API_KEY")
+        gemini_key = os.getenv("GEMINI_API_KEY")
+
+        if openai_key:
+            self.provider = "OpenAI"
+            self.client = AsyncOpenAI(api_key=openai_key)
+        elif gemini_key:
+            self.provider = "Gemini"
+            genai.configure(api_key=gemini_key)
             self.client = genai.GenerativeModel("gemini-1.5-flash", generation_config={"response_mime_type": "application/json"})
+        else:
+            print("Warning: No AI provider API KEY set. LLM translation will fall back to dummy data.")
 
     async def translate_to_b2b(self, term):
-        """Translates an Argentine search term into a technical B2B English keyword using Gemini."""
-        print(f"Translating '{term}' to B2B English...")
+        """Translates an Argentine search term into a technical B2B English keyword using OpenAI or Gemini."""
+        print(f"Translating '{term}' to B2B English with {self.provider or 'Fallback'}...")
         prompt = f"""
         You are an expert in international B2B manufacturing and e-commerce sourcing.
         Translate the following Argentine Spanish search term into highly technical, international B2B manufacturing English, suitable for an Alibaba search.
@@ -116,11 +124,20 @@ class LLM_Semantic_Bridge:
             return fallback_map.get(term.lower(), f"Technical B2B {term}")
 
         try:
-            # We wrap the generate_content call in a thread via asyncio or run it synchronously
-            # Google's generous async API requires generate_content_async
-            response = await self.client.generate_content_async(prompt)
+            if self.provider == "OpenAI":
+                response = await self.client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that outputs strict JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                content = response.choices[0].message.content
+            elif self.provider == "Gemini":
+                response = await self.client.generate_content_async(prompt)
+                content = response.text
 
-            content = response.text
             data = json.loads(content)
             b2b_term = data.get("b2b_search_term", "")
             print(f"Translation result for '{term}': {b2b_term}")
