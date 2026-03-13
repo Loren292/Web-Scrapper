@@ -4,7 +4,7 @@ import json
 import asyncio
 import requests
 import pandas as pd
-from openai import AsyncOpenAI
+import google.generativeai as genai
 from playwright.async_api import async_playwright
 import random
 
@@ -80,16 +80,18 @@ class Meli_Demand_Engine:
 # ==========================================
 class LLM_Semantic_Bridge:
     def __init__(self):
-        # We use AsyncOpenAI for async processing
-        api_key = os.getenv("OPENAI_API_KEY")
+        # We use Gemini for async processing
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            print("Warning: OPENAI_API_KEY environment variable not set. LLM translation will fall back to dummy data.")
+            print("Warning: GEMINI_API_KEY environment variable not set. LLM translation will fall back to dummy data.")
             self.client = None
         else:
-            self.client = AsyncOpenAI(api_key=api_key)
+            genai.configure(api_key=api_key)
+            # gemini-1.5-flash is fast and supports JSON response formats
+            self.client = genai.GenerativeModel("gemini-1.5-flash", generation_config={"response_mime_type": "application/json"})
 
     async def translate_to_b2b(self, term):
-        """Translates an Argentine search term into a technical B2B English keyword using GPT-4o-mini."""
+        """Translates an Argentine search term into a technical B2B English keyword using Gemini."""
         print(f"Translating '{term}' to B2B English...")
         prompt = f"""
         You are an expert in international B2B manufacturing and e-commerce sourcing.
@@ -114,16 +116,11 @@ class LLM_Semantic_Bridge:
             return fallback_map.get(term.lower(), f"Technical B2B {term}")
 
         try:
-            response = await self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that outputs strict JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"}
-            )
+            # We wrap the generate_content call in a thread via asyncio or run it synchronously
+            # Google's generous async API requires generate_content_async
+            response = await self.client.generate_content_async(prompt)
 
-            content = response.choices[0].message.content
+            content = response.text
             data = json.loads(content)
             b2b_term = data.get("b2b_search_term", "")
             print(f"Translation result for '{term}': {b2b_term}")
