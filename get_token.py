@@ -5,7 +5,7 @@ import os
 # 1. Reemplaza con tus credenciales reales
 APP_ID = "1732371876763735"
 CLIENT_SECRET = "wTWeFAlmktaBuTsdg96lCml1nNH6wIIy"
-AUTH_CODE = "TG-69b4261a4f1cea00010d0e23-1410231298" 
+AUTH_CODE = "TG-69b4586f0cc641000104619f-1410231298" 
 TOKENS_FILE = "tokens.json"
 
 def get_refresh_token():
