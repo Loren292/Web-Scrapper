@@ -124,33 +124,30 @@ class Static_Semantic_Bridge:
         Signature matched for: b2b_terms = Static_Semantic_Bridge().translate_terms(meli_data)
         """
         results = []
-        meli_trends = [opp["term"] for opp in meli_data]
 
-        for trend in meli_trends:
-            trend_lower = trend.lower()
+        for trend_obj in meli_data:
+            trend_lower = trend_obj.get("term", "").lower()
             match_found = False
 
             # Buscamos si alguna de nuestras claves maestras está en la tendencia de ML
             for ml_key, alibaba_query in self.mapping.items():
-                # Checking substring: is the dictionary key inside the ML trend?
-                # e.g., "funda asiento auto" in "funda para asiento de auto" -> False directly
-                # We need to split the ml_key into words and check if all words exist in the trend
-                ml_words = ml_key.split()
-                if all(word in trend_lower for word in ml_words):
-                    # Find the original opportunity data to retrieve the total_results
-                    for opp in meli_data:
-                        if opp["term"] == trend:
-                            results.append({
-                                "term": trend,
-                                "total_results": opp["total_results"],
-                                "b2b_search_term": alibaba_query
-                            })
-                            break
+                # Checking substring: is the dictionary key inside the ML trend (or vice versa)?
+                ml_key_lower = ml_key.lower()
+
+                # We split the ml_key into words and check if all words exist in the trend
+                # OR if the exact phrase is in the trend or vice versa.
+                ml_words = ml_key_lower.split()
+                if all(word in trend_lower for word in ml_words) or ml_key_lower in trend_lower or trend_lower in ml_key_lower:
+                    results.append({
+                        "term": trend_obj["term"],
+                        "total_results": trend_obj.get("total_results", 0),
+                        "b2b_search_term": alibaba_query
+                    })
                     match_found = True
                     break # Si encuentra coincidencia, pasa a la siguiente tendencia
 
             if not match_found:
-                print(f"Ignorando tendencia fuera de nicho: {trend}")
+                print(f"Ignorando tendencia fuera de nicho: {trend_obj.get('term', '')}")
 
         return results
 
