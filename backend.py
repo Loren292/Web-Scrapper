@@ -21,8 +21,8 @@ class Meli_Demand_Engine:
         self.trends_url = "https://api.mercadolibre.com/trends/MLA"
         self.search_url = "https://api.mercadolibre.com/sites/MLA/search"
 
-    def get_top_trends(self):
-        """Fetches top 50 trends from MELI MLA."""
+    def get_top_trends(self, limit=50):
+        """Fetches top trends from MELI MLA up to the given limit."""
         print("Fetching top trends from Mercado Libre...")
         try:
             response = requests.get(self.trends_url)
@@ -31,7 +31,7 @@ class Meli_Demand_Engine:
             # trends_data is typically a list of dicts with 'keyword' or just a list of objects
             # Let's handle list of dicts: [{'keyword': 'term', 'url': '...'}, ...]
             if isinstance(trends_data, list):
-                trends = [item.get("keyword") for item in trends_data[:50] if "keyword" in item]
+                trends = [item.get("keyword") for item in trends_data[:limit] if "keyword" in item]
             else:
                 trends = []
             return trends
@@ -47,8 +47,10 @@ class Meli_Demand_Engine:
                 "auriculares inalambricos"           # should be skipped
             ]
 
-    def get_opportunity_ratio(self, trends):
-        """Calculates active listings for each trend and returns the top 5 with the lowest listings."""
+    def get_top_opportunities(self, limit=10):
+        """Calculates active listings for each trend and returns the top opportunities."""
+        trends = self.get_top_trends(limit=50) # fetch enough trends to sort
+
         opportunities = []
         print(f"Calculating opportunity ratio for {len(trends)} trends...")
         for term in trends:
@@ -75,10 +77,10 @@ class Meli_Demand_Engine:
         # Sort by total_results ascending (lowest supply, high demand)
         sorted_opportunities = sorted(opportunities, key=lambda x: x["total_results"])
 
-        # Return top 5
-        top_5 = sorted_opportunities[:5]
-        print(f"Top 5 opportunities found: {top_5}")
-        return top_5
+        # Return up to limit
+        top_ops = sorted_opportunities[:limit]
+        print(f"Top {limit} opportunities found: {top_ops}")
+        return top_ops
 
 # ==========================================
 # MODULE 2: Static_Semantic_Bridge
@@ -113,12 +115,13 @@ class Static_Semantic_Bridge:
             "luces parrilla": "LED grille lights Raptor style amber waterproof"
         }
 
-    def translate_terms(self, meli_trends):
+    def translate_terms(self, meli_data):
         """
-        Recibe una lista de strings (tendencias de ML) y devuelve
-        las traducciones exactas para Alibaba si encuentra coincidencias.
+        Processes a list of opportunities dicts and returns matched translated terms.
+        Signature matched for: b2b_terms = Static_Semantic_Bridge().translate_terms(meli_data)
         """
-        b2b_search_terms = []
+        results = []
+        meli_trends = [opp["term"] for opp in meli_data]
 
         for trend in meli_trends:
             trend_lower = trend.lower()
@@ -131,44 +134,20 @@ class Static_Semantic_Bridge:
                 # We need to split the ml_key into words and check if all words exist in the trend
                 ml_words = ml_key.split()
                 if all(word in trend_lower for word in ml_words):
-                    b2b_search_terms.append({
-                        "meli_term": trend,
-                        "b2b_query": alibaba_query
-                    })
+                    # Find the original opportunity data to retrieve the total_results
+                    for opp in meli_data:
+                        if opp["term"] == trend:
+                            results.append({
+                                "term": trend,
+                                "total_results": opp["total_results"],
+                                "b2b_search_term": alibaba_query
+                            })
+                            break
                     match_found = True
                     break # Si encuentra coincidencia, pasa a la siguiente tendencia
 
-            # Sinceridad técnica: Si la tendencia es algo que no está en el diccionario
-            # (ej. "zapatillas nike"), la ignoramos para no gastar recursos en Alibaba.
             if not match_found:
                 print(f"Ignorando tendencia fuera de nicho: {trend}")
-
-        return b2b_search_terms
-
-    async def process_opportunities(self, opportunities):
-        """Processes a list of opportunities using substring matching logic."""
-        results = []
-
-        # Extract just the trend terms for the translate function
-        meli_trends = [opp["term"] for opp in opportunities]
-
-        # Get matching b2b queries
-        translated_terms = self.translate_terms(meli_trends)
-
-        # Re-map the total_results back into the matched terms
-        for translation in translated_terms:
-            meli_term = translation["meli_term"]
-            b2b_query = translation["b2b_query"]
-
-            # Find the original opportunity data to retrieve the total_results
-            for opp in opportunities:
-                if opp["term"] == meli_term:
-                    results.append({
-                        "term": meli_term,
-                        "total_results": opp["total_results"],
-                        "b2b_search_term": b2b_query
-                    })
-                    break
 
         return results
 
@@ -339,7 +318,11 @@ class Alibaba_Sourcing_Scraper:
 
         return results
 
-    async def run_pipeline(self, processed_opportunities):
+    def scrape_suppliers(self, processed_opportunities):
+        """Synchronous wrapper to scrape suppliers for given opportunities."""
+        return asyncio.run(self._run_pipeline(processed_opportunities))
+
+    async def _run_pipeline(self, processed_opportunities):
         final_data = []
         for opp in processed_opportunities:
             b2b_term = opp["b2b_search_term"]
@@ -382,18 +365,25 @@ class Arbitrage_Compiler:
         self.columns = [
             "MELI_Term",
             "MELI_Active_Listings",
+            "MELI_URL",
             "B2B_Search_Term",
             "Supplier_Name",
             "Product_Title",
             "FOB_Price",
             "MOQ",
             "Location",
-            "URL"
+            "Alibaba_URL"
         ]
 
-    def compile_report(self, data):
-        """Compiles the final data into a pandas DataFrame and exports it to CSV."""
-        print(f"Compiling arbitrage report with {len(data)} rows...")
+    def generate_dataframe(self, meli_data, alibaba_data):
+        """Compiles the final data into a pandas DataFrame, resolving URLs and exporting it."""
+        print(f"Compiling arbitrage report with {len(alibaba_data)} rows...")
+        data = alibaba_data
+
+        # Add MELI_URL and Alibaba_URL
+        for row in data:
+            row["MELI_URL"] = f"https://listado.mercadolibre.com.ar/{row['MELI_Term'].replace(' ', '-')}"
+            row["Alibaba_URL"] = row.pop("URL", "N/A")
         if not data:
             print("No data to compile.")
             return
@@ -412,34 +402,13 @@ class Arbitrage_Compiler:
         except Exception as e:
             print(f"Error saving to CSV: {e}")
 
-async def main_pipeline():
-    print("=== Starting Project Delta: Arbitrage Pipeline ===")
-
-    # Module 1
-    engine = Meli_Demand_Engine()
-    trends = engine.get_top_trends()
-    if not trends:
-        print("Pipeline aborted: No trends found.")
-        return
-
-    opportunities = engine.get_opportunity_ratio(trends)
-    if not opportunities:
-        print("Pipeline aborted: Could not calculate opportunities.")
-        return
-
-    # Module 2
-    bridge = Static_Semantic_Bridge()
-    processed_opps = await bridge.process_opportunities(opportunities)
-
-    # Module 3
-    scraper = Alibaba_Sourcing_Scraper()
-    final_data = await scraper.run_pipeline(processed_opps)
-
-    # Module 4
-    compiler = Arbitrage_Compiler()
-    compiler.compile_report(final_data)
-
-    print("=== Pipeline Complete ===")
+        return df
 
 if __name__ == "__main__":
-    asyncio.run(main_pipeline())
+    # Test script locally
+    limit_input = 5
+    meli_data = Meli_Demand_Engine().get_top_opportunities(limit=limit_input)
+    b2b_terms = Static_Semantic_Bridge().translate_terms(meli_data)
+    alibaba_data = Alibaba_Sourcing_Scraper().scrape_suppliers(b2b_terms)
+    df_final = Arbitrage_Compiler().generate_dataframe(meli_data, alibaba_data)
+    print(df_final)
