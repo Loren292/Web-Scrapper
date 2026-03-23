@@ -115,7 +115,7 @@ def fetch_seller_items(user_id, token):
         st.error(f"Error al buscar publicaciones: {response.status_code} - {response.text}")
         return []
 
-def fetch_item_details(item_ids, token):
+def fetch_item_details(item_ids, token, user_id):
     """Fetches details for a list of item IDs. Max 20 ids per request."""
     if not item_ids:
         return []
@@ -137,12 +137,59 @@ def fetch_item_details(item_ids, token):
             for item in data:
                 if item.get("code") == 200:
                     body = item.get("body", {})
+
+                    shipping = body.get("shipping", {})
+                    free_shipping = shipping.get("free_shipping", False)
+
+                    shipping_cost = "A cargo del comprador"
+                    if free_shipping:
+                        # Fetch shipping cost for the seller
+                        item_id = body.get("id")
+                        shipping_url = f"https://api.mercadolibre.com/users/{user_id}/shipping_options/free?item_id={item_id}"
+                        # Add retries for the connection reset by peer issues
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                shipping_response = requests.get(shipping_url, headers=get_headers(token))
+
+                                if shipping_response.status_code == 200:
+                                    shipping_data = shipping_response.json()
+                                    coverage = shipping_data.get("coverage", {})
+
+                                    # Depending on the item it could be "all_country" or "all"
+                                    all_coverage = coverage.get("all_country", coverage.get("all", {}))
+                                    cost = all_coverage.get("list_cost")
+
+                                    # Fallback if the structure is different
+                                    if cost is None:
+                                        cost = shipping_data.get("cost")
+
+                                    if cost is not None:
+                                        shipping_cost = f"$ {cost}"
+                                    else:
+                                        shipping_cost = "No disponible"
+                                else:
+                                    shipping_cost = "No disponible"
+                                break # Success, exit retry loop
+                            except requests.exceptions.ConnectionError:
+                                if attempt < max_retries - 1:
+                                    time.sleep(1) # wait before retrying
+                                else:
+                                    shipping_cost = "Error de conexión"
+                            except Exception as e:
+                                shipping_cost = "Error de conexión"
+                                break # don't retry on other exceptions
+
+                        # Sleep after the extra API call
+                        time.sleep(0.5)
+
                     details.append({
                         "ID": body.get("id"),
                         "Título": body.get("title"),
                         "Precio": body.get("price"),
                         "Stock Disponible": body.get("available_quantity"),
                         "Condición": body.get("condition"),
+                        "Costo de Envío": shipping_cost,
                         "Enlace": body.get("permalink")
                     })
         else:
@@ -175,7 +222,7 @@ if st.button("Consultar Mi Stock", type="primary"):
             st.info("No tienes publicaciones activas en Mercado Libre.")
         else:
             with st.spinner(f"Obteniendo detalles de {len(item_ids)} publicaciones..."):
-                    item_details = fetch_item_details(item_ids, valid_token)
+                    item_details = fetch_item_details(item_ids, valid_token, user_id)
 
             if item_details:
                 df = pd.DataFrame(item_details)
