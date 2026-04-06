@@ -2,141 +2,234 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
 
-def create_presentation():
-    # 1. Initialize presentation
+def create_professional_presentation():
     prs = Presentation()
+    blank_layout = prs.slide_layouts[6] # Blank layout
 
-    # ---------------------------------------------------------
+    # Colores corporativos
+    COLOR_PRIMARY = RGBColor(15, 32, 67)    # Azul oscuro
+    COLOR_SECONDARY = RGBColor(0, 114, 206) # Azul vibrante
+    COLOR_ACCENT = RGBColor(0, 178, 169)    # Turquesa/Teal
+    COLOR_LIGHT = RGBColor(245, 247, 250)   # Gris muy claro (Fondo)
+    COLOR_TEXT_DARK = RGBColor(51, 51, 51)  # Texto oscuro
+    COLOR_TEXT_LIGHT = RGBColor(255, 255, 255) # Texto claro
+
+    # =====================================================================
     # Diapositiva 1: El Propósito (El Problema y la Solución)
-    # ---------------------------------------------------------
-    # Usar un layout en blanco (index 6 suele ser blank en la plantilla por defecto)
-    blank_slide_layout = prs.slide_layouts[6]
-    slide1 = prs.slides.add_slide(blank_slide_layout)
+    # =====================================================================
+    slide1 = prs.slides.add_slide(blank_layout)
+    slide1.background.fill.solid()
+    slide1.background.fill.fore_color.rgb = COLOR_LIGHT
 
-    # Fondo blanco (por defecto en el blank layout suele ser blanco, pero aseguramos)
-    background1 = slide1.background
-    fill1 = background1.fill
-    fill1.solid()
-    fill1.fore_color.rgb = RGBColor(255, 255, 255)
+    # Título principal sutil
+    title_box1 = slide1.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(9), Inches(1))
+    tf1 = title_box1.text_frame
+    p1 = tf1.paragraphs[0]
+    p1.text = "TRANSFORMACIÓN DE VALOR"
+    p1.font.size = Pt(20)
+    p1.font.bold = True
+    p1.font.color.rgb = COLOR_SECONDARY
+    p1.font.name = 'Segoe UI'
 
-    # Agregar caja de texto en el centro
-    # Centrar horizontal y verticalmente usando dimensiones de la diapositiva
-    # Diapositiva por defecto: 10 pulgadas de ancho por 7.5 pulgadas de alto
-    left = Inches(1)
-    top = Inches(3)
-    width = Inches(8)
-    height = Inches(1.5)
+    # Bloque 1: Datos Crudos
+    shape1 = slide1.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.5), Inches(3), Inches(2.5), Inches(1.5))
+    shape1.fill.solid()
+    shape1.fill.fore_color.rgb = COLOR_PRIMARY
+    shape1.line.color.rgb = COLOR_PRIMARY
+    tf_s1 = shape1.text_frame
+    tf_s1.word_wrap = True
+    p_s1 = tf_s1.paragraphs[0]
+    p_s1.text = "DATOS\nCRUDOS"
+    p_s1.alignment = PP_ALIGN.CENTER
+    p_s1.font.size = Pt(20)
+    p_s1.font.bold = True
+    p_s1.font.color.rgb = COLOR_TEXT_LIGHT
+    p_s1.font.name = 'Segoe UI'
 
-    txBox1 = slide1.shapes.add_textbox(left, top, width, height)
-    tf1 = txBox1.text_frame
-    tf1.word_wrap = True
+    # Flecha 1
+    arrow1 = slide1.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, Inches(3.2), Inches(3.5), Inches(0.8), Inches(0.5))
+    arrow1.fill.solid()
+    arrow1.fill.fore_color.rgb = COLOR_SECONDARY
+    arrow1.line.fill.background()
 
-    p = tf1.paragraphs[0]
-    p.text = "DATOS TRANSACCIONALES CRUDOS   ➔   ⚙️   ➔   DECISIONES ESTRATÉGICAS RENTABLES"
-    p.alignment = PP_ALIGN.CENTER
-    p.font.bold = True
-    p.font.size = Pt(24)
-    p.font.color.rgb = RGBColor(0, 0, 0)
-    p.font.name = 'Arial'
+    # Bloque 2: Motor / Proceso
+    shape2 = slide1.shapes.add_shape(MSO_SHAPE.HEXAGON, Inches(4.2), Inches(2.75), Inches(2.0), Inches(2.0))
+    shape2.fill.solid()
+    shape2.fill.fore_color.rgb = COLOR_SECONDARY
+    shape2.line.color.rgb = COLOR_SECONDARY
+    tf_s2 = shape2.text_frame
+    tf_s2.word_wrap = True
+    p_s2 = tf_s2.paragraphs[0]
+    p_s2.text = "MOTOR\nB.I."
+    p_s2.alignment = PP_ALIGN.CENTER
+    p_s2.font.size = Pt(22)
+    p_s2.font.bold = True
+    p_s2.font.color.rgb = COLOR_TEXT_LIGHT
+    p_s2.font.name = 'Segoe UI'
+
+    # Flecha 2
+    arrow2 = slide1.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, Inches(6.4), Inches(3.5), Inches(0.8), Inches(0.5))
+    arrow2.fill.solid()
+    arrow2.fill.fore_color.rgb = COLOR_SECONDARY
+    arrow2.line.fill.background()
+
+    # Bloque 3: Decisiones
+    shape3 = slide1.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(7.4), Inches(3), Inches(2.5), Inches(1.5))
+    shape3.fill.solid()
+    shape3.fill.fore_color.rgb = COLOR_ACCENT
+    shape3.line.color.rgb = COLOR_ACCENT
+    tf_s3 = shape3.text_frame
+    tf_s3.word_wrap = True
+    p_s3 = tf_s3.paragraphs[0]
+    p_s3.text = "DECISIONES\nRENTABLES"
+    p_s3.alignment = PP_ALIGN.CENTER
+    p_s3.font.size = Pt(20)
+    p_s3.font.bold = True
+    p_s3.font.color.rgb = COLOR_TEXT_LIGHT
+    p_s3.font.name = 'Segoe UI'
 
 
-    # ---------------------------------------------------------
+    # =====================================================================
     # Diapositiva 2: La Metodología (Los 5 Pasos)
-    # ---------------------------------------------------------
-    slide2 = prs.slides.add_slide(blank_slide_layout)
+    # =====================================================================
+    slide2 = prs.slides.add_slide(blank_layout)
+    slide2.background.fill.solid()
+    slide2.background.fill.fore_color.rgb = COLOR_LIGHT
 
-    background2 = slide2.background
-    fill2 = background2.fill
-    fill2.solid()
-    fill2.fore_color.rgb = RGBColor(250, 250, 250) # Gris muy claro
+    # Título superior con fondo oscuro
+    title_shape2 = slide2.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(10), Inches(1.2))
+    title_shape2.fill.solid()
+    title_shape2.fill.fore_color.rgb = COLOR_PRIMARY
+    title_shape2.line.fill.background()
 
-    # Título superior
-    title_box2 = slide2.shapes.add_textbox(Inches(1), Inches(0.5), Inches(8), Inches(1))
-    tf_title2 = title_box2.text_frame
+    tf_title2 = title_shape2.text_frame
+    tf_title2.vertical_anchor = 3 # middle
     p_title2 = tf_title2.paragraphs[0]
     p_title2.text = "ESTRUCTURA METODOLÓGICA"
     p_title2.alignment = PP_ALIGN.CENTER
     p_title2.font.bold = True
-    p_title2.font.size = Pt(36)
-    p_title2.font.name = 'Arial'
-
-    # Texto central: lista numerada
-    content_box2 = slide2.shapes.add_textbox(Inches(1.5), Inches(2), Inches(7), Inches(4.5))
-    tf_content2 = content_box2.text_frame
-    tf_content2.word_wrap = True
+    p_title2.font.size = Pt(32)
+    p_title2.font.color.rgb = COLOR_TEXT_LIGHT
+    p_title2.font.name = 'Segoe UI'
 
     steps = [
-        "1. Diagnóstico: Auditoría de bases de datos y mapeo de procesos.",
-        "2. Estructuración: Diseño dimensional y proceso ETL.",
-        "3. Formulación: Modelado matemático de KPIs operativos.",
-        "4. Desarrollo Visual: Tablero de Control interactivo (BI).",
-        "5. Evaluación Económica: Viabilidad financiera (VAN y TIR)."
+        ("01", "DIAGNÓSTICO", "Auditoría de bases de datos y mapeo de procesos."),
+        ("02", "ESTRUCTURACIÓN", "Diseño dimensional y pipeline ETL sin código."),
+        ("03", "FORMULACIÓN", "Modelado matemático de KPIs operativos y financieros."),
+        ("04", "DESARROLLO", "Despliegue del Tablero de Control interactivo."),
+        ("05", "EVALUACIÓN", "Análisis de viabilidad económica (VAN, TIR y ROI).")
     ]
 
-    for i, step in enumerate(steps):
-        if i == 0:
-            p2 = tf_content2.paragraphs[0]
-        else:
-            p2 = tf_content2.add_paragraph()
-            p2.space_before = Pt(14)
+    top_start = 1.8
+    step_height = 0.9
 
-        p2.text = step
-        p2.font.size = Pt(24)
-        p2.font.name = 'Arial'
-        p2.font.color.rgb = RGBColor(50, 50, 50)
+    for i, (num, title, desc) in enumerate(steps):
+        # Número
+        num_shape = slide2.shapes.add_shape(MSO_SHAPE.OVAL, Inches(0.5), Inches(top_start + i * step_height), Inches(0.7), Inches(0.7))
+        num_shape.fill.solid()
+        num_shape.fill.fore_color.rgb = COLOR_SECONDARY
+        num_shape.line.fill.background()
+        tf_num = num_shape.text_frame
+        p_num = tf_num.paragraphs[0]
+        p_num.text = num
+        p_num.alignment = PP_ALIGN.CENTER
+        p_num.font.bold = True
+        p_num.font.size = Pt(20)
+        p_num.font.color.rgb = COLOR_TEXT_LIGHT
+
+        # Título del paso
+        title_box = slide2.shapes.add_textbox(Inches(1.4), Inches(top_start + i * step_height), Inches(2.5), Inches(0.7))
+        tf_step = title_box.text_frame
+        p_step = tf_step.paragraphs[0]
+        p_step.text = title
+        p_step.font.bold = True
+        p_step.font.size = Pt(18)
+        p_step.font.color.rgb = COLOR_PRIMARY
+        p_step.font.name = 'Segoe UI'
+
+        # Descripción del paso
+        desc_box = slide2.shapes.add_textbox(Inches(4.0), Inches(top_start + i * step_height), Inches(5.5), Inches(0.7))
+        tf_desc = desc_box.text_frame
+        p_desc = tf_desc.paragraphs[0]
+        p_desc.text = desc
+        p_desc.font.size = Pt(16)
+        p_desc.font.color.rgb = COLOR_TEXT_DARK
+        p_desc.font.name = 'Segoe UI'
 
 
-    # ---------------------------------------------------------
+    # =====================================================================
     # Diapositiva 3: El Ancla (Las Contribuciones)
-    # ---------------------------------------------------------
-    slide3 = prs.slides.add_slide(blank_slide_layout)
+    # =====================================================================
+    slide3 = prs.slides.add_slide(blank_layout)
+    slide3.background.fill.solid()
+    slide3.background.fill.fore_color.rgb = COLOR_PRIMARY
 
-    # Fondo azul marino oscuro
-    background3 = slide3.background
-    fill3 = background3.fill
-    fill3.solid()
-    fill3.fore_color.rgb = RGBColor(10, 25, 60) # Azul marino oscuro
-
-    # Título superior
-    title_box3 = slide3.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1))
+    # Título
+    title_box3 = slide3.shapes.add_textbox(Inches(1), Inches(0.8), Inches(8), Inches(1))
     tf_title3 = title_box3.text_frame
     p_title3 = tf_title3.paragraphs[0]
     p_title3.text = "CONTRIBUCIONES DEL PROYECTO"
     p_title3.alignment = PP_ALIGN.CENTER
     p_title3.font.bold = True
-    p_title3.font.size = Pt(40)
-    p_title3.font.color.rgb = RGBColor(255, 255, 255)
-    p_title3.font.name = 'Arial'
-
-    # Texto central
-    content_box3 = slide3.shapes.add_textbox(Inches(1.5), Inches(3), Inches(7), Inches(3))
-    tf_content3 = content_box3.text_frame
-    tf_content3.word_wrap = True
+    p_title3.font.size = Pt(36)
+    p_title3.font.color.rgb = COLOR_TEXT_LIGHT
+    p_title3.font.name = 'Segoe UI'
 
     contributions = [
-        "I. Arquitectura de Datos Saneada",
-        "II. Motor de KPIs Operativos",
-        "III. Viabilidad Financiera Demostrada"
+        "Arquitectura de Datos Saneada",
+        "Motor de KPIs Operativos",
+        "Viabilidad Financiera Demostrada"
     ]
 
+    # Crear 3 tarjetas horizontales o 3 bloques verticales
+    # Haremos 3 tarjetas verticales para que se vea impactante
+    card_width = 2.5
+    card_height = 3.5
+    start_left = 1.0
+    spacing = 0.5
+
     for i, contrib in enumerate(contributions):
-        if i == 0:
-            p3 = tf_content3.paragraphs[0]
-        else:
-            p3 = tf_content3.add_paragraph()
-            p3.space_before = Pt(30)
+        left = start_left + i * (card_width + spacing)
 
-        p3.text = contrib
-        p3.alignment = PP_ALIGN.CENTER
-        p3.font.bold = True
-        p3.font.size = Pt(28)
-        p3.font.color.rgb = RGBColor(255, 255, 255)
-        p3.font.name = 'Arial'
+        # Tarjeta
+        card = slide3.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(2.5), Inches(card_width), Inches(card_height))
+        card.fill.solid()
+        card.fill.fore_color.rgb = COLOR_TEXT_LIGHT
+        card.line.fill.background()
 
-    # 4. Save presentation
+        # Acento superior en la tarjeta
+        accent = slide3.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(left), Inches(2.5), Inches(card_width), Inches(0.2))
+        accent.fill.solid()
+        accent.fill.fore_color.rgb = COLOR_ACCENT
+        accent.line.fill.background()
+
+        # Número gigante como marca de agua
+        num_box = slide3.shapes.add_textbox(Inches(left), Inches(3.0), Inches(card_width), Inches(1))
+        tf_num_card = num_box.text_frame
+        p_num_card = tf_num_card.paragraphs[0]
+        p_num_card.text = f"0{i+1}"
+        p_num_card.alignment = PP_ALIGN.CENTER
+        p_num_card.font.bold = True
+        p_num_card.font.size = Pt(40)
+        p_num_card.font.color.rgb = RGBColor(220, 225, 235) # Gris muy claro
+        p_num_card.font.name = 'Segoe UI'
+
+        # Texto de la contribución
+        text_box = slide3.shapes.add_textbox(Inches(left + 0.1), Inches(4.0), Inches(card_width - 0.2), Inches(1.5))
+        tf_text = text_box.text_frame
+        tf_text.word_wrap = True
+        p_text = tf_text.paragraphs[0]
+        p_text.text = contrib
+        p_text.alignment = PP_ALIGN.CENTER
+        p_text.font.bold = True
+        p_text.font.size = Pt(20)
+        p_text.font.color.rgb = COLOR_PRIMARY
+        p_text.font.name = 'Segoe UI'
+
     prs.save('Presentacion_BI.pptx')
-    print("Archivo 'Presentacion_BI.pptx' generado exitosamente.")
+    print("Archivo 'Presentacion_BI.pptx' actualizado con diseño profesional exitosamente.")
 
 if __name__ == '__main__':
-    create_presentation()
+    create_professional_presentation()
