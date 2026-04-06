@@ -4,22 +4,20 @@ from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 
-def create_dark_modern_presentation():
+def create_serious_dark_presentation():
     prs = Presentation()
     blank_layout = prs.slide_layouts[6]
 
-    # Paleta Dark Mode (Cyan y Morado neon sobre oscuro)
-    COLOR_BG_OVERLAY = RGBColor(20, 20, 25)      # Oscuro base para superposiciones
-    COLOR_ACCENT_1 = RGBColor(0, 210, 255)       # Cyan Neón
-    COLOR_ACCENT_2 = RGBColor(138, 43, 226)      # Morado
-    COLOR_TEXT_LIGHT = RGBColor(240, 240, 240)   # Texto principal
-    COLOR_TEXT_MUTED = RGBColor(170, 170, 180)   # Texto secundario
+    # Paleta Dark Serious (Colores muy neutrales y corporativos)
+    COLOR_BG_OVERLAY = RGBColor(30, 30, 35)      # Gris antracita (fondo de tarjetas)
+    COLOR_ACCENT_1 = RGBColor(160, 160, 170)     # Gris plata / Platinum (Acento principal sutil)
+    COLOR_ACCENT_2 = RGBColor(100, 100, 110)     # Gris acero (Acento secundario profundo)
+    COLOR_TEXT_LIGHT = RGBColor(245, 245, 245)   # Blanco roto (Texto principal)
+    COLOR_TEXT_MUTED = RGBColor(180, 180, 190)   # Gris claro (Texto secundario)
 
-    bg_image_path = "dark_bg.jpg"
+    bg_image_path = "serious_bg.jpg"
 
     def set_slide_background(slide):
-        # En python-pptx agregar una imagen como fondo real es complejo en algunos layouts,
-        # la forma más robusta y compatible es agregar una imagen estirada al tamaño de la slide en el fondo (z-index 0)
         slide.shapes.add_picture(bg_image_path, Inches(0), Inches(0), width=prs.slide_width, height=prs.slide_height)
 
     # =====================================================================
@@ -35,14 +33,14 @@ def create_dark_modern_presentation():
     p1.text = "TRANSFORMACIÓN DE VALOR"
     p1.font.size = Pt(22)
     p1.font.bold = True
-    p1.font.color.rgb = COLOR_ACCENT_1
+    p1.font.color.rgb = COLOR_TEXT_LIGHT
     p1.font.name = 'Segoe UI'
 
     # Bloque 1: Datos Crudos
     shape1 = slide1.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.5), Inches(3), Inches(2.5), Inches(1.5))
     shape1.fill.solid()
     shape1.fill.fore_color.rgb = COLOR_BG_OVERLAY
-    shape1.line.color.rgb = COLOR_TEXT_MUTED
+    shape1.line.color.rgb = COLOR_ACCENT_2
     tf_s1 = shape1.text_frame
     tf_s1.word_wrap = True
     p_s1 = tf_s1.paragraphs[0]
@@ -50,20 +48,20 @@ def create_dark_modern_presentation():
     p_s1.alignment = PP_ALIGN.CENTER
     p_s1.font.size = Pt(20)
     p_s1.font.bold = True
-    p_s1.font.color.rgb = COLOR_TEXT_LIGHT
+    p_s1.font.color.rgb = COLOR_TEXT_MUTED
     p_s1.font.name = 'Segoe UI'
 
     # Flecha 1
     arrow1 = slide1.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, Inches(3.2), Inches(3.5), Inches(0.8), Inches(0.5))
     arrow1.fill.solid()
-    arrow1.fill.fore_color.rgb = COLOR_ACCENT_2
+    arrow1.fill.fore_color.rgb = COLOR_ACCENT_1
     arrow1.line.fill.background()
 
     # Bloque 2: Motor / Proceso
     shape2 = slide1.shapes.add_shape(MSO_SHAPE.HEXAGON, Inches(4.2), Inches(2.75), Inches(2.0), Inches(2.0))
     shape2.fill.solid()
-    shape2.fill.fore_color.rgb = COLOR_ACCENT_2
-    shape2.line.color.rgb = COLOR_ACCENT_2
+    shape2.fill.fore_color.rgb = COLOR_ACCENT_1
+    shape2.line.color.rgb = COLOR_ACCENT_1
     tf_s2 = shape2.text_frame
     tf_s2.word_wrap = True
     p_s2 = tf_s2.paragraphs[0]
@@ -71,7 +69,7 @@ def create_dark_modern_presentation():
     p_s2.alignment = PP_ALIGN.CENTER
     p_s2.font.size = Pt(22)
     p_s2.font.bold = True
-    p_s2.font.color.rgb = COLOR_TEXT_LIGHT
+    p_s2.font.color.rgb = RGBColor(20, 20, 20) # Letra oscura para contraste sobre gris plata
     p_s2.font.name = 'Segoe UI'
 
     # Flecha 2
@@ -84,7 +82,7 @@ def create_dark_modern_presentation():
     shape3 = slide1.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(7.4), Inches(3), Inches(2.5), Inches(1.5))
     shape3.fill.solid()
     shape3.fill.fore_color.rgb = COLOR_BG_OVERLAY
-    shape3.line.color.rgb = COLOR_ACCENT_1
+    shape3.line.color.rgb = COLOR_ACCENT_2
     tf_s3 = shape3.text_frame
     tf_s3.word_wrap = True
     p_s3 = tf_s3.paragraphs[0]
@@ -133,15 +131,15 @@ def create_dark_modern_presentation():
         # Número
         num_shape = slide2.shapes.add_shape(MSO_SHAPE.OVAL, Inches(0.5), Inches(top_start + i * step_height), Inches(0.6), Inches(0.6))
         num_shape.fill.solid()
-        num_shape.fill.fore_color.rgb = COLOR_ACCENT_2
-        num_shape.line.fill.background()
+        num_shape.fill.fore_color.rgb = COLOR_BG_OVERLAY
+        num_shape.line.color.rgb = COLOR_ACCENT_1
         tf_num = num_shape.text_frame
         p_num = tf_num.paragraphs[0]
         p_num.text = num
         p_num.alignment = PP_ALIGN.CENTER
         p_num.font.bold = True
         p_num.font.size = Pt(16)
-        p_num.font.color.rgb = COLOR_TEXT_LIGHT
+        p_num.font.color.rgb = COLOR_ACCENT_1
 
         # Título del paso
         title_box = slide2.shapes.add_textbox(Inches(1.3), Inches(top_start + i * step_height - 0.1), Inches(3.0), Inches(0.5))
@@ -150,7 +148,7 @@ def create_dark_modern_presentation():
         p_step.text = title
         p_step.font.bold = True
         p_step.font.size = Pt(18)
-        p_step.font.color.rgb = COLOR_ACCENT_1
+        p_step.font.color.rgb = COLOR_TEXT_LIGHT
         p_step.font.name = 'Segoe UI'
 
         # Descripción del paso
@@ -183,7 +181,7 @@ def create_dark_modern_presentation():
     # Línea decorativa
     line3 = slide3.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(3.5), Inches(1.3), Inches(3.0), Inches(0.05))
     line3.fill.solid()
-    line3.fill.fore_color.rgb = COLOR_ACCENT_2
+    line3.fill.fore_color.rgb = COLOR_ACCENT_1
     line3.line.fill.background()
 
     contributions = [
@@ -200,13 +198,13 @@ def create_dark_modern_presentation():
     for i, contrib in enumerate(contributions):
         left = start_left + i * (card_width + spacing)
 
-        # Tarjeta semi-transparente simulada (Fondo oscuro)
+        # Tarjeta
         card = slide3.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(2.2), Inches(card_width), Inches(card_height))
         card.fill.solid()
         card.fill.fore_color.rgb = COLOR_BG_OVERLAY
-        card.line.color.rgb = COLOR_ACCENT_1
+        card.line.color.rgb = COLOR_ACCENT_2
 
-        # Número gigante
+        # Número gigante (muy sutil como marca de agua en gris oscuro)
         num_box = slide3.shapes.add_textbox(Inches(left), Inches(2.5), Inches(card_width), Inches(1))
         tf_num_card = num_box.text_frame
         p_num_card = tf_num_card.paragraphs[0]
@@ -214,7 +212,7 @@ def create_dark_modern_presentation():
         p_num_card.alignment = PP_ALIGN.CENTER
         p_num_card.font.bold = True
         p_num_card.font.size = Pt(48)
-        p_num_card.font.color.rgb = COLOR_ACCENT_2
+        p_num_card.font.color.rgb = RGBColor(60, 60, 65)
         p_num_card.font.name = 'Segoe UI'
 
         # Texto de la contribución
@@ -230,7 +228,7 @@ def create_dark_modern_presentation():
         p_text.font.name = 'Segoe UI'
 
     prs.save('Presentacion_BI.pptx')
-    print("Archivo 'Presentacion_BI.pptx' actualizado con tema oscuro, imagen de fondo y diseño profesional.")
+    print("Archivo 'Presentacion_BI.pptx' actualizado con paleta seria neutral y nueva imagen.")
 
 if __name__ == '__main__':
-    create_dark_modern_presentation()
+    create_serious_dark_presentation()
